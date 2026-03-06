@@ -9,3 +9,17 @@ class ItemCreate(ItemBase):
 
 class Item(ItemBase):
     id: int
+
+# Column Names: ['id', 'Region', 'Year', 'Percentage_using', 'Source']
+class InternetUsageDataSchema(BaseModel):
+    id: int
+    Region: str
+    Year: int
+    Percentage_using: float
+    Source: str
+
+class InternetUsageDataCreate(BaseModel):
+    Region: str
+    Year: int
+    Percentage_using: float
+    Source: str

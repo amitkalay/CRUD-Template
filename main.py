@@ -1,5 +1,5 @@
 from fastapi import FastAPI, HTTPException
-from database import init_db, get_db
+from database import get_internet_usage_db, init_db, get_db
 import schemas
 
 app = FastAPI()
@@ -7,48 +7,30 @@ app = FastAPI()
 # Initialize database on startup
 init_db()
 
-@app.post("/items/", response_model=schemas.Item)
-def create_item(item: schemas.ItemCreate):
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute(
-            "INSERT INTO items (title, description) VALUES (?, ?)",
-            (item.title, item.description)
-        )
-        item_id = cursor.lastrowid
-        return {"id": item_id, **item.model_dump()}
-
-@app.get("/items/", response_model=list[schemas.Item])
-def read_items():
-    with get_db() as conn:
-        items = conn.execute("SELECT * FROM items").fetchall()
+# enhance this API to include an optional year query parameter to filter results by year
+# enhance this further to include an optional region query parameter to filter results by region as well
+@app.get("/internet_usage_data/", response_model=list[schemas.InternetUsageDataSchema])
+def read_internet_usage_data(year: int | None = None, region: str | None = None):
+    with get_internet_usage_db() as conn:
+        if year is not None and region is not None:
+            items = conn.execute("SELECT * FROM usage_table WHERE Year = ? AND Region = ?", (year, region)).fetchall()
+        elif year is not None:
+            items = conn.execute("SELECT * FROM usage_table WHERE Year = ?", (year,)).fetchall()
+        elif region is not None:
+            items = conn.execute("SELECT * FROM usage_table WHERE Region = ?", (region,)).fetchall()
+        else:
+            items = conn.execute("SELECT * FROM usage_table").fetchall()
         return [dict(row) for row in items]
-
-@app.get("/items/{item_id}", response_model=schemas.Item)
-def read_item(item_id: int):
-    with get_db() as conn:
-        item = conn.execute("SELECT * FROM items WHERE id = ?", (item_id,)).fetchone()
-        if not item:
-            raise HTTPException(status_code=404, detail="Item not found")
-        return dict(item)
-
-@app.put("/items/{item_id}", response_model=schemas.Item)
-def update_item(item_id: int, item: schemas.ItemCreate):
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute(
-            "UPDATE items SET title = ?, description = ? WHERE id = ?",
-            (item.title, item.description, item_id)
+    
+# create a new API endpoint to write a single record to the database. The API should accept a JSON body with the same structure as the InternetUsageDataSchema, but without the id field (since it will be auto-incremented by the database). The API should return the newly created record, including the generated id.
+@app.post("/internet_usage_data/", response_model=schemas.InternetUsageDataSchema)
+def create_internet_usage_data(item: schemas.InternetUsageDataCreate):
+    with get_internet_usage_db() as conn:
+        # if id already exists, return an error or do a NO-OP
+        cursor = conn.execute(
+            "INSERT INTO usage_table (Region, Year, Percentage_using, Source) VALUES (?, ?, ?, ?)",
+            (item.Region, item.Year, item.Percentage_using, item.Source)
         )
-        if cursor.rowcount == 0:
-            raise HTTPException(status_code=404, detail="Item not found")
-        return {"id": item_id, **item.model_dump()}
-
-@app.delete("/items/{item_id}")
-def delete_item(item_id: int):
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM items WHERE id = ?", (item_id,))
-        if cursor.rowcount == 0:
-            raise HTTPException(status_code=404, detail="Item not found")
-        return {"message": "Item deleted successfully"}
+        new_id = cursor.lastrowid
+        new_item = conn.execute("SELECT * FROM usage_table WHERE id = ?", (new_id,)).fetchone()
+        return dict(new_item)
