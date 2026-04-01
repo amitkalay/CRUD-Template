@@ -7,6 +7,10 @@ app = FastAPI()
 # Initialize database on startup
 init_db()
 
+@app.get("/hello_world")
+def hello_world():
+    return {"hello": "world"}
+
 @app.post("/items/", response_model=schemas.Item)
 def create_item(item: schemas.ItemCreate):
     with get_db() as conn:
